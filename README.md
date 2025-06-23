@@ -4,9 +4,9 @@
 
 [![最新版本](https://img.shields.io/github/v/release/your-username/JobPilot?label=最新版本&logo=github)](https://github.com/your-username/JobPilot/releases/latest)
 [![下载量](https://img.shields.io/github/downloads/your-username/JobPilot/total.svg?label=下载量&logo=github)](https://github.com/your-username/JobPilot/releases)
-[![Kotlin 版本](https://img.shields.io/badge/Kotlin-2.0.0-7F52FF.svg?logo=kotlin)](https://kotlinlang.org)
-[![Compose Multiplatform](https://img.shields.io/badge/Compose-1.6.10-4285F4.svg?logo=jetpackcompose)](https://www.jetbrains.com/lp/compose-multiplatform/)
-[![Playwright 版本](https://img.shields.io/badge/Playwright-1.44.0-2EAD33.svg?logo=microsoft)](https://playwright.dev/java/)
+[![Kotlin 版本](https://img.shields.io/badge/Kotlin-2.1.21-7F52FF.svg?logo=kotlin)](https://kotlinlang.org)
+[![Compose Multiplatform](https://img.shields.io/badge/Compose-1.8.0-4285F4.svg?logo=jetpackcompose)](https://www.jetbrains.com/lp/compose-multiplatform/)
+[![Playwright 版本](https://img.shields.io/badge/Playwright-1.52.0-2EAD33.svg?logo=microsoft)](https://playwright.dev/java/)
 [![许可证](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
