@@ -47,6 +47,7 @@ JobPilot 是一款独立的桌面应用程序，旨在通过自动化技术简�
     2.  将获取到的 API Key 填入 JobPilot 应用的设置界面中。
 *   **关于费用**：Google Gemini API 目前提供非常慷慨的免费使用额度，对于本应用的日常使用量来说通常是完全免费的。详情请参阅 [Google官方定价策略](https://ai.google.dev/pricing)。
 *   **未来支持**：本项目的架构设计支持快速扩展至其他 AI 模型服务（如 OpenAI/ChatGPT 等）。
+    > 👉 **[点击阅读：AI求职助手配置与使用指南](./AI_PROMPT_GUIDE.md)** 👈
 
 ## 👨‍💻 面向开发者
 
