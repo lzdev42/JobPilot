@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import logview.LogViewModel
 import utils.AppConfig
+import utils.ApplyCheck
 import utils.getGreeting
 import kotlin.random.Random
 
@@ -250,6 +251,11 @@ class BossJobSeeker(
         val companyName = jobCard.locator(Selectors.COMPANY_NAME).textContent()
         println("    [applyToJob] 职位: $jobName, 公司: $companyName")
 
+        if (!ApplyCheck.canProceed(companyName,jobName)) {
+            viewModel.addLog("公司被加入黑名单或岗位已投递过，跳过")
+            return false
+        }
+
         println("    [applyToJob] 已打开新标签页用于职位详情")
         val jobPage = context.newPage()
         try {
@@ -327,7 +333,7 @@ class BossJobSeeker(
             viewModel.addLog("已投递: $companyName - $jobName")
             submittedCount++
             println("<-- [applyToJob] 投递成功！")
-
+            ApplyCheck.recordSubmission(companyName,jobName)
             delay(rateLimit.pageInterval)
             jobPage.close()
             return true

@@ -27,7 +27,7 @@ import setting.SettingView
 @Composable
 @Preview
 fun MainPage(modifier: Modifier) {
-    val tabItems = listOf<String>("boss","51job","猎聘","简历","Prompts","设置")
+    val tabItems = listOf<String>("boss","51job","猎聘","个人简介","Prompts","设置")
     var selectedTabIndex by remember { mutableStateOf(0) }
     val bossViewModel = remember { JobPanelViewModel(SeekerType.BOSS) }
     val job51ViewModel = remember { JobPanelViewModel(SeekerType.JOB51) }

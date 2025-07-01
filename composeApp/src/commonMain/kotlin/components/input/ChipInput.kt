@@ -1,13 +1,17 @@
 package components.input
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -26,10 +30,7 @@ fun ChipInput(
     OutlinedTextField(
         value = currentInput,
         onValueChange = { newValue ->
-            if (newValue.isEmpty() && currentInput.isEmpty() && value.isNotEmpty()) {
-                // 当按下退格键且输入框为空时，删除最后一个标签
-                onValueChange(value.dropLast(1))
-            } else if (newValue.endsWith(",") || newValue.endsWith(" ")) {
+            if (newValue.endsWith(",") || newValue.endsWith(" ")) {
                 val newKeyword = newValue.trim().trimEnd(',')
                 if (newKeyword.isNotEmpty() && !value.contains(newKeyword)) {
                     onValueChange(value + newKeyword)
@@ -41,8 +42,19 @@ fun ChipInput(
         },
         enabled = enabled,
         singleLine = true,
-        modifier = modifier.fillMaxWidth(),
-        textStyle = TextStyle(fontSize = 16.sp), // 直接设置输入文字大小
+        modifier = modifier
+            .fillMaxWidth()
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyUp &&
+                    event.key == Key.Backspace &&
+                    currentInput.isEmpty() && value.isNotEmpty()
+                ) {
+                    onValueChange(value.dropLast(1))
+                    return@onKeyEvent true
+                }
+                false
+            },
+        textStyle = TextStyle(fontSize = 16.sp),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(
             onDone = {
@@ -54,23 +66,13 @@ fun ChipInput(
                 }
             }
         ),
-        placeholder = if (value.isEmpty()) {
-            {
-                Text(
-                    text = placeholder,
-                    style = TextStyle(
-                        fontSize = 16.sp,  // 与textStyle保持一致
-                        lineHeight = 30.sp  // 设置合适的行高
-                    ),
-                    color = LocalContentColor.current.copy(alpha = ContentAlpha.medium)
-                )
-            }
-        } else null,
+        placeholder = { Text(placeholder) },
         leadingIcon = if (value.isNotEmpty()) {
             {
                 Row(
-                    modifier = Modifier.padding(end = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.padding(start = 8.dp, end = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     value.forEach { keyword ->
                         Chip(
@@ -98,18 +100,18 @@ private fun Chip(
         color = MaterialTheme.colors.primary.copy(alpha = 0.1f)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.caption,
+                style = MaterialTheme.typography.body2,
                 color = MaterialTheme.colors.primary
             )
             TextButton(
                 onClick = onRemove,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
                 contentPadding = PaddingValues(0.dp)
             ) {
                 Text(

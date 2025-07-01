@@ -22,7 +22,8 @@ fun JobPanelView(model: JobPanelViewModel) {
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, alignment = Alignment.CenterHorizontally)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Button(onClick = { model.startJobSeeker() }) {
                 Text(if (model.isRunning) "停止" else "开始")
@@ -31,7 +32,7 @@ fun JobPanelView(model: JobPanelViewModel) {
             ChipInput(
                 value = model.keywords,
                 onValueChange = { model.updateKeywords(it) },
-                modifier = Modifier.weight(1f).padding(top = 5.dp).height(50.dp),
+                modifier = Modifier.weight(1f),
                 placeholder = "输入关键词，用逗号或空格分隔"
             )
         }
