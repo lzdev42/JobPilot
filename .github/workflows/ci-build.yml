@@ -76,7 +76,7 @@ jobs:
       #    build.gradle.kts中的智能逻辑会根据OS生成 .dmg 或 .AppImage
       - name: Build with Gradle (Linux/macOS)
         if: runner.os == 'Linux' || runner.os == 'macOS'
-        run: ./gradlew packageRelease
+        run: ./gradlew packageReleaseDistributionForCurrentOS
 
       # 5. (仅Windows) 使用Gradle生成可分发文件夹
       - name: Build with Gradle (Windows)
