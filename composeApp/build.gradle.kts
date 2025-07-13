@@ -49,9 +49,19 @@ compose.desktop {
         mainClass = "xyz.emuci.jobpilot.MainKt"
 
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "xyz.emuci.jobpilot"
             packageVersion = "1.0.0"
+
+            // Gemini 修改开始：根据当前操作系统动态设置打包格式
+            // 这样，在macOS上构建时不会因包含AppImage而失败。
+            // Windows的打包将由CI工作流特殊处理，以生成.zip文件。
+            val osName = System.getProperty("os.name")
+            if (osName.startsWith("Mac")) {
+                targetFormats(TargetFormat.Dmg)
+            } else if (osName.startsWith("Linux")) {
+                targetFormats(TargetFormat.AppImage)
+            }
+            // Gemini 修改结束
         }
     }
 }

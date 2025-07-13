@@ -71,5 +71,6 @@ class InputViewModel(val inputType: InputType): ViewModel() {
             }
 
         }
+        AppConfig.saveUserSettings()
     }
 }
