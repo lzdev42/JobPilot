@@ -63,6 +63,19 @@ compose.desktop {
             }
             // Gemini 修改结束
         }
+
+        // Gemini 修改开始：根据文章内容添加ProGuard发布配置
+        buildTypes {
+            release {
+                proguard {
+                    // 应用ProGuard规则文件
+                    configurationFiles.from(file("proguard-rules.pro"))
+                    // 指定兼容Java 21和Kotlin 2.x的ProGuard版本
+                    version.set("7.7.0")
+                }
+            }
+        }
+        // Gemini 修改结束
     }
 }
 

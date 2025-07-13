@@ -81,7 +81,7 @@ jobs:
       # 5. (仅Windows) 使用Gradle生成可分发文件夹
       - name: Build with Gradle (Windows)
         if: runner.os == 'Windows'
-        run: ./gradlew.bat :composeApp:createDistributable
+        run: ./gradlew.bat -Pcompose.desktop.windows.msi.enabled=false :composeApp:createDistributable
 
       # 6. (仅Windows) 将可分发文件夹压缩为 .zip
       - name: Package Windows distributable into a ZIP
