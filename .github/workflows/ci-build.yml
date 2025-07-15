@@ -1,7 +1,5 @@
-# 工作流名称
 name: Build and Package Compose Multiplatform Desktop Release
 
-# 触发条件
 on:
   push:
     branches:
@@ -12,25 +10,24 @@ on:
 
 jobs:
   build:
-    # 使用矩阵策略，在三个不同的操作系统上并行运行
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
-      # 步骤 1: 检出代码
+      # 1. 检出代码
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 步骤 2: 设置 JDK 17 环境
+      # 2. 设置 JDK 21
       - name: Setup JDK
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
-      # 步骤 3: 缓存 Gradle 依赖
+      # 3. 缓存 Gradle
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -40,52 +37,43 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
-      # 步骤 4: 赋予 Gradle 执行权限 (Linux/macOS)
+      # 4. 赋予 Gradle 执行权限 (非 Windows)
       - name: Make gradlew executable
         if: matrix.os != 'windows-latest'
         run: chmod +x ./gradlew
 
-      # 步骤 5: 构建发布版本 (使用您原来的自定义命令)
+      # 5. 执行您的自定义构建命令
       - name: Build Release Distribution
         run: ./gradlew packageReleaseDistributionForCurrentOS
 
-      # 步骤 6: Windows - 压缩 app 目录为 ZIP
-      # (保留您原来的逻辑，如果 packageReleaseDistributionForCurrentOS 任务已经生成了安装包，此步骤可能可以移除)
+      # 6. Windows: 压缩 app 目录为 ZIP
       - name: Zip app directory (Windows)
         if: matrix.os == 'windows-latest'
         run: |
           cd composeApp/build/compose/binaries
-          # 注意：根据您的任务输出，这个路径可能需要调整
-          # 假设您的任务输出在 'release/app' 目录
-          cd release/app
-          zip -r ../../../app.zip .
+          zip -r app.zip app
         shell: bash
 
-      # -- 以下是修正后的上传逻辑 --
-
-      # 步骤 7.1: 上传 macOS 构建产物 (DMG)
+      # 7. 上传 macOS 构建产物 (DMG)
       - name: Upload macOS Artifact
         if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: release-artifact-macos
-          # 请根据您的 packageReleaseDistributionForCurrentOS 任务的实际输出路径修改
-          path: composeApp/build/compose/binaries/release/dmg/*.dmg
+          path: composeApp/build/compose/binaries/*.dmg
 
-      # 步骤 7.2: 上传 Linux 构建产物 (AppImage)
+      # 8. 上传 Linux 构建产物 (AppImage)
       - name: Upload Linux Artifact
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: release-artifact-linux
-          # 请根据您的 packageReleaseDistributionForCurrentOS 任务的实际输出路径修改
-          path: composeApp/build/compose/binaries/release/app/*.AppImage
+          path: composeApp/build/compose/binaries/*.AppImage
 
-      # 步骤 7.3: 上传 Windows 构建产物 (ZIP)
+      # 9. 上传 Windows 构建产物 (ZIP)
       - name: Upload Windows Artifact
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: release-artifact-windows
-          # 这是您手动压缩后的 ZIP 文件
           path: composeApp/build/compose/binaries/app.zip
