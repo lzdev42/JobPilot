@@ -15,22 +15,22 @@ jobs:
       matrix:
         include:
           # --- macOS 任务 ---
-          # Intel (x86_64) 架构: 使用 macos-13 Runner
+          # Intel (x86_64) 架构: 使用免费的 macos-13 Runner
           - platform: macos
             os: macos-13
             arch: x86_64
-          # Apple Silicon (arm64) 架构: 使用 macos-latest (即 macos-14)
+          # Apple Silicon (arm64) 架构: 使用免费的 macos-latest (即 macos-14)
           - platform: macos
             os: macos-latest
             arch: arm64
           # --- Linux 任务 ---
           # Intel/AMD (x86_64) 架构
           - platform: linux
-            os: ubuntu-latest
+            os: ubuntu-latest # 指向 ubuntu-24.04
             arch: x86_64
-          # arm64 架构 (通过 QEMU 模拟)
+          # arm64 架构: 使用官方提供的原生 arm64 Runner
           - platform: linux
-            os: ubuntu-latest
+            os: ubuntu-22.04-arm # 使用明确的、稳定的 arm Runner
             arch: arm64
 
     runs-on: ${{ matrix.os }}
@@ -57,27 +57,11 @@ jobs:
           key: gradle-${{ matrix.platform }}-${{ matrix.arch }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ matrix.platform }}-${{ matrix.arch }}-
 
-      # 4. 执行构建 (标准方式)
-      - name: Build for ${{ matrix.platform }} (${{ matrix.arch }})
-        if: matrix.arch != 'arm64' || matrix.platform != 'linux'
+      # 4. 执行构建 (现在所有平台都使用原生方式)
+      - name: Build for ${{ matrix.platform }} (${{ matrix.arch == 'arm64' && 'Silicon' || matrix.arch }})
         run: |
           chmod +x ./gradlew
           ./gradlew packageReleaseDistributionForCurrentOS
-
-      # 4.1. 执行构建 (Linux arm64 模拟方式)
-      - name: Build for Linux (arm64 via QEMU)
-        if: matrix.platform == 'linux' && matrix.arch == 'arm64'
-        uses: uraimo/run-on-arch-action@v1
-        with:
-          arch: aarch64
-          distro: ubuntu22.04
-          run: |
-            apt-get update && apt-get install -y openjdk-21-jdk git
-            export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-            git clone https://github.com/${{ github.repository }}.git .
-            git checkout ${{ github.sha }}
-            chmod +x ./gradlew
-            ./gradlew packageReleaseDistributionForCurrentOS
 
       # 5. 上传 macOS 构建产物
       - name: Upload macOS Artifact (${{ matrix.arch == 'arm64' && 'Silicon' || matrix.arch }})
