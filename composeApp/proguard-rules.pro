@@ -5,6 +5,9 @@
 -keep class kotlinx.** { *; }
 -keep class androidx.** { *; }
 
+-keep class com.microsoft.playwright.** { *; }
+-dontwarn com.microsoft.playwright.**
+
 # 保留必要的元数据属性
 -keepattributes *Annotation*
 -keepattributes Signature

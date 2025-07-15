@@ -60,6 +60,8 @@ compose.desktop {
                 targetFormats(TargetFormat.Dmg)
             } else if (osName.startsWith("Linux")) {
                 targetFormats(TargetFormat.AppImage)
+            } else if (osName.startsWith("Windows")){
+                targetFormats(TargetFormat.Msi)
             }
             // Gemini 修改结束
         }
