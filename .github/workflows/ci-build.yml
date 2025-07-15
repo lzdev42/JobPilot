@@ -1,6 +1,5 @@
 name: Build and Package Compose Multiplatform macOS Release
 
-# 触发条件：推送到 main 分支或向 main 分支发起 Pull Request 时触发
 on:
   push:
     branches:
@@ -11,8 +10,19 @@ on:
 
 jobs:
   build-macos:
-    # 只在 macOS 上运行
-    runs-on: macos-latest
+    # 使用构建矩阵，为不同架构创建不同的构建任务
+    strategy:
+      matrix:
+        include:
+          # Intel (x86_64) 架构的构建任务
+          - os: macos-latest
+            arch: x86_64
+          # Apple Silicon (arm64) 架构的构建任务
+          - os: macos-latest
+            arch: arm64
+
+    # 使用矩阵中定义的操作系统来运行
+    runs-on: ${{ matrix.os }}
 
     steps:
       # 1. 检出代码
@@ -24,29 +34,32 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: '21'
-          distribution: 'corretto' # 使用 Amazon Corretto
+          distribution: 'corretto'
 
       # 3. 缓存 Gradle 依赖，加快构建速度
+      # key 中加入了架构信息，确保不同架构的缓存是独立的
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-macos-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: gradle-macos-
+          key: gradle-${{ matrix.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ matrix.os }}-
 
       # 4. 赋予 Gradle Wrapper 执行权限
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
       # 5. 执行您的自定义构建命令
-      - name: Build Release Distribution
+      # 您的任务 packageReleaseDistributionForCurrentOS 会在对应的机器上构建对应架构的包
+      - name: Build Release Distribution for ${{ matrix.arch }}
         run: ./gradlew packageReleaseDistributionForCurrentOS
 
       # 6. 上传 macOS 构建产物 (DMG)
-      - name: Upload macOS Artifact
+      # artifact 的名字中加入了架构信息，以区分不同的构建产物
+      - name: Upload macOS Artifact (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
         with:
-          name: release-artifact-macos
-          path: composeApp/build/compose/binaries/*.dmg
+          name: release-artifact-macos-${{ matrix.arch }}
+          path: composeApp/build/compose/binaries/dmg/*.dmg
