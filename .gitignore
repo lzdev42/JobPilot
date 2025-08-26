@@ -1,0 +1,118 @@
+# =========================================
+# .gitignore for Compose Multiplatform
+# =========================================
+
+# ### IDE ###
+# IntelliJ IDEA / Android Studio
+.idea/
+*.iml
+*~
+*.swp
+
+# Xcode (for iOS target)
+#
+# 忽略 Xcode 项目的用户特定设置和构建产物
+*.xcodeproj/project.xcworkspace
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+
+# ### Build System (Gradle) ###
+#
+# Gradle 构建目录，所有模块的构建产物都在这里 (e.g., /shared/build, /androidApp/build)
+build/
+
+# Gradle 本地缓存
+.gradle/
+
+# 本地配置文件，包含 SDK 路径等敏感信息，不应提交
+local.properties
+
+# Gradle Wrapper 的 jar 包。Wrapper脚本会自动下载，无需提交
+# 如果团队需要完全离线的构建环境，可以取消这一行（在前面加 #）
+!gradle/wrapper/gradle-wrapper.jar
+gradle-wrapper.jar
+
+
+# ### Platform Specific ###
+#
+# Android
+#
+# APK 和 App Bundle 文件
+*.apk
+*.aab
+# Android Studio 测试截图
+captures/
+# NDK 构建文件
+.cxx/
+
+# iOS
+#
+# CocoaPods 依赖库，通过 `pod install` 安装，不提交源码
+Pods/
+# iOS 项目的 Carthage 依赖
+Carthage/
+
+# Desktop
+#
+# 打包后的桌面应用安装包
+*.dmg
+*.msi
+*.exe
+*.deb
+*.rpm
+
+# Web (JS/Wasm)
+#
+# Wasm/JS 的分发目录，通常在 build/dist/ 下，已被 /build 规则覆盖
+# 但为了清晰，可以保留
+/jsApp/build/
+/wasmApp/build/
+
+
+# ### Build Artifacts (from your original list) ###
+#
+# 编译后的 class 文件
+*.class
+# 包文件
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+
+# ### Logs & Crash Dumps ###
+#
+# 日志文件
+*.log
+# JVM 崩溃日志
+hs_err_pid*
+replay_pid*
+
+
+# ### Kotlin ###
+#
+# Kotlin Gradle 插件数据
+.kotlin/
+
+
+# ### Operating System ###
+#
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+
+
+# ### Misc (from your original list) ###
+#
+# BlueJ files
+*.ctxt
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+!gradle/wrapper/gradle-wrapper.jar

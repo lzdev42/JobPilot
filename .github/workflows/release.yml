@@ -1,0 +1,158 @@
+
+# GitHub Actions 工作流：自动构建、打包和发布
+#
+# 工作流名称
+name: Release JobPilot
+
+# 触发条件：当一个格式为 v*.*.* (例如 v1.0.0, v1.2.3) 的新标签被推送到仓库时触发
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  # --- 构建任务 ---
+  # 该任务在一个矩阵中运行，为所有目标平台和架构并行构建应用
+  build:
+    strategy:
+      # 构建矩阵：定义不同的操作系统和架构组合
+      matrix:
+        # 包含的组合
+        include:
+          # macOS - Intel (x86_64)
+          - os: macos-13
+            target: x86_64
+            asset_name_prefix: macos-intel
+
+          # macOS - Apple Silicon (ARM64)
+          - os: macos-14
+            target: aarch64
+            asset_name_prefix: macos-arm64
+
+          # Linux (x86_64)
+          - os: ubuntu-22.04
+            target: x86_64
+            asset_name_prefix: linux-x86_64
+
+          # Windows (x86_64)
+          - os: windows-2022
+            target: x86_64
+            asset_name_prefix: windows-x86_64
+
+          # --- ARM 运行器 (需要特定的GitHub付费套餐或自托管运行器) ---
+          # 如果您的环境支持，取消以下注释即可启用
+          #
+          # # Linux (ARM64)
+          # - os: ubuntu-latest-arm64 # 运行器名称可能需要根据您的订阅调整
+          #   target: aarch64
+          #   asset_name_prefix: linux-arm64
+          #
+          # # Windows (ARM64)
+          # - os: windows-latest-arm64 # 运行器名称可能需要根据您的订阅调整
+          #   target: aarch64
+          #   asset_name_prefix: windows-arm64
+
+    # 指定任务运行的操作系统环境
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      # 1. 检出代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. 设置 JDK 21 环境
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      # 3. (仅Linux/macOS) 赋予 gradlew 执行权限
+      - name: Grant execute permission to gradlew
+        if: runner.os != 'Windows'
+        run: chmod +x ./gradlew
+
+      # 4. (仅Linux/macOS) 使用Gradle构建和打包
+      #    build.gradle.kts中的智能逻辑会根据OS生成 .dmg 或 .AppImage
+      - name: Build with Gradle (Linux/macOS)
+        if: runner.os == 'Linux' || runner.os == 'macOS'
+        run: ./gradlew packageReleaseDistributionForCurrentOS
+
+      # 5. (仅Windows) 使用Gradle生成可分发文件夹
+      - name: Build with Gradle (Windows)
+        if: runner.os == 'Windows'
+        run: ./gradlew.bat -Pcompose.desktop.windows.msi.enabled=false :composeApp:createDistributable
+
+      # 6. (仅Windows) 将可分发文件夹压缩为 .zip
+      - name: Package Windows distributable into a ZIP
+        if: runner.os == 'Windows'
+        run: |
+          $distDir = "composeApp/build/compose/desktop/distributable"
+          $zipFile = "JobPilot-windows-${{ matrix.target }}.zip"
+          Compress-Archive -Path "$distDir/*" -DestinationPath $zipFile
+        shell: pwsh
+
+      # 7. 从 build.gradle.kts 中提取包版本号
+      - name: Get Package Version
+        id: get_version
+        run: echo "package_version=$(grep 'packageVersion = ' composeApp/build.gradle.kts | cut -d '"' -f 2)" >> $GITHUB_ENV
+
+      # 8. 上传构建产物 (macOS)
+      - name: Upload Artifact (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: JobPilot-${{ matrix.asset_name_prefix }}
+          path: composeApp/build/compose/desktop/release/xyz.emuci.jobpilot-${{ env.package_version }}.dmg
+
+      # 9. 上传构建产物 (Linux)
+      - name: Upload Artifact (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: JobPilot-${{ matrix.asset_name_prefix }}
+          path: composeApp/build/compose/desktop/release/xyz.emuci.jobpilot-${{ env.package_version }}.AppImage
+
+      # 10. 上传构建产物 (Windows)
+      - name: Upload Artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: JobPilot-${{ matrix.asset_name_prefix }}
+          path: JobPilot-windows-${{ matrix.target }}.zip
+
+  # --- 发布任务 ---
+  # 该任务等待所有平台的构建任务成功完成后才执行
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 下载所有构建任务上传的产物
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # (调试步骤) 显示下载的产物结构
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      # 2. 创建 GitHub Release 并上传所有产物
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # 使用触发工作流的标签作为Release名称
+          tag_name: ${{ github.ref_name }}
+          # 使用标签名作为Release标题
+          name: Release ${{ github.ref_name }}
+          # 自动从提交历史生成发布说明
+          generate_release_notes: true
+          # 上传所有下载的产物文件
+          files: |
+            artifacts/JobPilot-macos-intel/*.dmg
+            artifacts/JobPilot-macos-arm64/*.dmg
+            artifacts/JobPilot-linux-x86_64/*.AppImage
+            artifacts/JobPilot-windows-x86_64/*.zip
+            # 如果启用了ARM构建，取消以下行的注释
+            # artifacts/JobPilot-linux-arm64/*.AppImage
+            # artifacts/JobPilot-windows-arm64/*.zip

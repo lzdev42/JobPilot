@@ -1,0 +1,223 @@
+name: Multi-Platform Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches:
+      - main
+      - master
+
+env:
+  GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.jvmargs=-Xmx4g
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false  # 一个平台失败不影响其他平台
+      matrix:
+        include:
+          # macOS - Intel (x86_64)
+          - os: macos-13
+            arch: x86_64
+            platform: macos
+            target: dmg
+            asset_name: macos-x86_64
+
+          # macOS - Apple Silicon (ARM64)
+          - os: macos-latest
+            arch: arm64
+            platform: macos
+            target: dmg
+            asset_name: macos-apple-silicon
+
+          # Linux - x86_64
+          - os: ubuntu-24.04
+            arch: x86_64
+            platform: linux
+            target: appimage
+            asset_name: linux-x86_64
+
+          # Linux - ARM64 (aarch64)
+          - os: ubuntu-24.04
+            arch: aarch64
+            platform: linux
+            target: appimage
+            asset_name: linux-aarch64
+
+          # Windows - x86_64
+          - os: windows-2022
+            arch: x86_64
+            platform: windows
+            target: exe
+            asset_name: windows-x86_64
+
+          # Windows - ARM64
+          - os: windows-2022
+            arch: arm64
+            platform: windows
+            target: exe
+            asset_name: windows-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission to gradlew
+        if: runner.os != 'Windows'
+        run: chmod +x ./gradlew
+
+      # 获取版本号
+      - name: Get Package Version
+        id: get_version
+        run: |
+          VERSION=$(grep 'packageVersion = ' composeApp/build.gradle.kts | cut -d '"' -f 2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Package version: $VERSION"
+
+      # macOS 构建
+      - name: Build macOS DMG
+        if: matrix.platform == 'macos'
+        run: |
+          echo "Building macOS DMG for ${{ matrix.arch }}..."
+          ./gradlew packageReleaseDmg --info
+          ls -la composeApp/build/compose/binaries/main-release/app/
+
+      # Windows 构建
+      - name: Build Windows EXE
+        if: matrix.platform == 'windows'
+        run: |
+          echo "Building Windows EXE for ${{ matrix.arch }}..."
+          ./gradlew.bat packageReleaseExe --info
+          ls -la composeApp/build/compose/binaries/main-release/app/
+
+      # Linux 构建 - 特殊处理
+      - name: Build Linux AppImage
+        if: matrix.platform == 'linux'
+        run: |
+          echo "Building Linux AppImage for ${{ matrix.arch }}..."
+          
+          # 安装 FUSE
+          sudo apt-get update
+          sudo apt-get install -y fuse
+          
+          # 构建应用程序目录
+          ./gradlew packageReleaseAppImage --info
+          
+          # 验证构建产物
+          ls -la composeApp/build/compose/binaries/main-release/app/
+          
+          # 安装 appimagetool
+          echo "Installing appimagetool..."
+          wget -O appimagetool "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+          chmod +x appimagetool
+          
+          # 创建 AppImage 目录结构
+          echo "Creating AppImage structure..."
+          mkdir -p AppDir/usr/bin
+          cp -r composeApp/build/compose/binaries/main-release/app/xyz.emuci.jobpilot/* AppDir/usr/bin/
+          cp AppDir/usr/bin/lib/xyz.emuci.jobpilot.png AppDir/xyz.emuci.jobpilot.png
+          
+          # 创建桌面文件
+          cat > AppDir/xyz.emuci.jobpilot.desktop << 'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=JobPilot
+          Exec=xyz.emuci.jobpilot
+          Icon=xyz.emuci.jobpilot
+          Categories=Development;
+          Comment=AI-powered job application assistant
+          EOF
+          
+          # 创建 AppRun 脚本
+          cat > AppDir/AppRun << 'EOF'
+          #!/bin/bash
+          cd "$(dirname "$0")"
+          exec ./usr/bin/bin/xyz.emuci.jobpilot "$@"
+          EOF
+          chmod +x AppDir/AppRun
+          
+          # 验证 AppImage 结构
+          echo "AppImage structure:"
+          ls -la AppDir/
+          ls -la AppDir/usr/bin/
+          
+          # 生成 AppImage
+          echo "Generating AppImage..."
+          ./appimagetool AppDir JobPilot-${{ env.VERSION }}-${{ matrix.asset_name }}.AppImage
+          
+          # 验证生成的 AppImage
+          ls -la JobPilot-${{ env.VERSION }}-${{ matrix.asset_name }}.AppImage
+          file JobPilot-${{ env.VERSION }}-${{ matrix.asset_name }}.AppImage
+
+      # 上传 macOS 产物
+      - name: Upload macOS DMG
+        if: matrix.platform == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: JobPilot-${{ matrix.asset_name }}
+          path: composeApp/build/compose/binaries/main-release/dmg/*.dmg
+          retention-days: 30
+
+      # 上传 Windows 产物
+      - name: Upload Windows EXE
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: JobPilot-${{ matrix.asset_name }}
+          path: composeApp/build/compose/binaries/main-release/app/xyz.emuci.jobpilot-${{ env.VERSION }}.exe
+          retention-days: 30
+
+      # 上传 Linux AppImage
+      - name: Upload Linux AppImage
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: JobPilot-${{ matrix.asset_name }}
+          path: JobPilot-${{ env.VERSION }}-${{ matrix.asset_name }}.AppImage
+          retention-days: 30
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') && (success() || failure())  # 只在推送标签时创建 release，即使部分构建失败也创建
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display structure of downloaded files
+        run: |
+          echo "Downloaded artifacts structure:"
+          find artifacts -type f -name "*.dmg" -o -name "*.AppImage" -o -name "*.exe" | sort
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/JobPilot-macos-x86_64/*.dmg
+            artifacts/JobPilot-macos-apple-silicon/*.dmg
+            artifacts/JobPilot-linux-x86_64/*.AppImage
+            artifacts/JobPilot-linux-aarch64/*.AppImage
+            artifacts/JobPilot-windows-x86_64/*.exe
+            artifacts/JobPilot-windows-arm64/*.exe
