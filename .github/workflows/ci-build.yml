@@ -101,16 +101,7 @@ jobs:
       # Windows 构建
       - name: Build with Gradle (Windows)
         if: matrix.platform == 'windows'
-        run: ./gradlew.bat -Pcompose.desktop.windows.msi.enabled=false :composeApp:createDistributable
-
-      # Windows ZIP 打包
-      - name: Package Windows distributable into a ZIP
-        if: matrix.platform == 'windows'
-        run: |
-          $distDir = "composeApp/build/compose/desktop/distributable"
-          $zipFile = "JobPilot-windows-${{ matrix.arch }}.zip"
-          Compress-Archive -Path "$distDir/*" -DestinationPath $zipFile
-        shell: pwsh
+        run: ./gradlew.bat packageReleaseDistributionForCurrentOS
 
       # Linux 构建 - 特殊处理
       - name: Build Linux AppImage
@@ -186,7 +177,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: JobPilot-${{ matrix.asset_name }}
-          path: JobPilot-windows-${{ matrix.arch }}.zip
+          path: composeApp/build/compose/binaries/main-release/msi/*.msi
+          retention-days: 30
 
       # 上传 Linux AppImage
       - name: Upload Linux AppImage
@@ -210,7 +202,7 @@ jobs:
       - name: Display structure of downloaded files
         run: |
           echo "Downloaded artifacts structure:"
-          find artifacts -type f -name "*.dmg" -o -name "*.AppImage" -o -name "*.zip" | sort
+          find artifacts -type f -name "*.dmg" -o -name "*.AppImage" -o -name "*.msi" | sort
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -225,5 +217,5 @@ jobs:
             artifacts/JobPilot-macos-apple-silicon/*.dmg
             artifacts/JobPilot-linux-x86_64/*.AppImage
             artifacts/JobPilot-linux-aarch64/*.AppImage
-            artifacts/JobPilot-windows-x86_64/*.zip
-            artifacts/JobPilot-windows-arm64/*.zip
+            artifacts/JobPilot-windows-x86_64/*.msi
+            artifacts/JobPilot-windows-arm64/*.msi
