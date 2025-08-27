@@ -177,7 +177,7 @@ object AppConfig {
 
     /**
      * 导出用户配置到指定目录
-     * 直接拷贝配置文件
+     * 只导出用户可配置的数据，不包含Boss配置文件（由应用自动生成）
      */
     fun exportConfigs(exportDir: File): Boolean {
         return try {
@@ -210,7 +210,8 @@ object AppConfig {
 
     /**
      * 从指定目录导入用户配置
-     * 直接拷贝配置文件并重新加载
+     * 只替换存在的配置文件，不会清空配置目录
+     * 不包含Boss配置文件（由应用自动生成）
      */
     fun importConfigs(importDir: File): Boolean {
         return try {
@@ -276,7 +277,14 @@ object AppConfig {
     }
 
     private fun getBossConfigPath(): String? {
-        val resourcePath = "files/bossconfig.json"
+        // 优先使用用户配置目录中的bossconfig.json
+        val userBossConfig = File(getUserConfigDirectory(), "bossconfig.json")
+        if (userBossConfig.exists()) {
+            return userBossConfig.absolutePath
+        }
+        
+        // 如果用户配置目录中没有，从资源中读取
+        val resourcePath = "composeResources/files/bossconfig.json"
         val resourceUrl = AppConfig::class.java.classLoader.getResource(resourcePath)
         if (resourceUrl != null) return resourceUrl.path
 
@@ -314,6 +322,35 @@ object AppConfig {
             }
         }
         return dir
+    }
+
+    /**
+     * 创建默认的Boss配置文件
+     * 每次启动都会从项目资源重新复制bossconfig.json到用户配置目录
+     * 这是一个防呆策略，确保配置文件始终是最新的
+     */
+    fun createDefaultBossConfig() {
+        try {
+            val userConfigDir = getUserConfigDirectory()
+            val targetBossConfig = File(userConfigDir, "bossconfig.json")
+            
+            // 从资源文件复制（每次都重新复制，覆盖已存在的文件）
+            val resourcePath = "composeResources/files/bossconfig.json"
+            val resourceStream = AppConfig::class.java.classLoader.getResourceAsStream(resourcePath)
+            
+            if (resourceStream != null) {
+                resourceStream.use { input ->
+                    targetBossConfig.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                println("Boss配置文件已更新到: ${targetBossConfig.absolutePath}")
+            } else {
+                System.err.println("无法找到Boss配置资源文件: $resourcePath")
+            }
+        } catch (e: Exception) {
+            System.err.println("创建Boss配置文件失败: ${e.message}")
+        }
     }
 
     private fun getUserConfigFile(): File = File(getUserConfigDirectory(), CONFIG_FILE_NAME)

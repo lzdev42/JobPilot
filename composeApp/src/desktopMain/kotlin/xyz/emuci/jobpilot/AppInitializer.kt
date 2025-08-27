@@ -15,9 +15,10 @@ object AppInitializer {
 
     private fun init(){
         AiManager.initGemini()
+        
+        // 创建默认Boss配置文件
+        AppConfig.createDefaultBossConfig()
+        
         isInitialized = true
-
-           // AppConfig.createDefaultBossConfig()
-           //println(AppConfig.getBossConfigPath() ?: "Boss config file not found.")
     }
 }
