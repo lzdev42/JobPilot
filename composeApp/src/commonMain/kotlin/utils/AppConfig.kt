@@ -281,15 +281,15 @@ object AppConfig {
             if (result.isSuccess) {
                 val jsonString = result.getOrThrow()
                 val config = jsonFormat.decodeFromString<BossConfig>(jsonString)
-                println("已从CDN获取Boss配置")
                 return config
             } else {
-                System.err.println("获取Boss配置失败: ${result.exceptionOrNull()?.message}")
+                // 错误信息会通过ViewModel传递到UI
+                throw Exception("网络请求失败: ${result.exceptionOrNull()?.message}")
             }
         } catch (e: Exception) {
-            System.err.println("获取Boss配置失败: ${e.message}")
+            // 错误信息会通过ViewModel传递到UI
+            throw e
         }
-        return null
     }
 
 

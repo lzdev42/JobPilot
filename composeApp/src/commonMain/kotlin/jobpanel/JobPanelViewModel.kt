@@ -88,12 +88,13 @@ class JobPanelViewModel(val seekerType: SeekerType): ViewModel() {
             bossConfig = AppConfig.getBossConfig()
             
             if (bossConfig != null) {
-                logViewModel.addLog("Boss配置加载完成")
+                logViewModel.addLog("✅ Boss配置加载完成")
             } else {
-                logViewModel.addLog("Boss配置加载失败")
+                logViewModel.addLog("❌ Boss配置加载失败，将无法使用Boss直聘功能")
             }
         } catch (e: Exception) {
-            logViewModel.addLog("加载Boss配置失败: ${e.message}")
+            logViewModel.addLog("❌ Boss配置加载失败: ${e.message}")
+            logViewModel.addLog("⚠️ 请检查网络连接或稍后重试")
         } finally {
             isBossConfigLoading = false
         }

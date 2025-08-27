@@ -57,6 +57,13 @@ fun JobPanelView(model: JobPanelViewModel) {
                     modifier = Modifier.padding(8.dp),
                     color = androidx.compose.ui.graphics.Color.Blue
                 )
+            } else if (model.bossConfig == null) {
+                // 显示加载失败状态
+                Text(
+                    text = "⚠️ Boss配置加载失败，无法使用Boss直聘功能",
+                    modifier = Modifier.padding(8.dp),
+                    color = androidx.compose.ui.graphics.Color.Red
+                )
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
