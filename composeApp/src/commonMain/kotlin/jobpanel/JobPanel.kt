@@ -50,13 +50,21 @@ fun JobPanelView(model: JobPanelViewModel) {
 
         // Boss 配置选项，仅在 BOSS 类型时显示
         if (model.seekerType == SeekerType.BOSS) {
+            // 显示加载状态
+            if (model.isBossConfigLoading) {
+                Text(
+                    text = "正在加载最新Boss配置...",
+                    modifier = Modifier.padding(8.dp),
+                    color = androidx.compose.ui.graphics.Color.Blue
+                )
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 BossConfigDropdown(
                     label = "工作类型",
-                    items = AppConfig.getBossConfig()?.jobType ?: emptyMap(),
+                    items = model.bossConfig?.jobType ?: emptyMap(),
                     selectedValue = model.bossFilter.jobType,
                     onValueChange = { model.bossFilter = model.bossFilter.copy(jobType = it) },
                     modifier = Modifier.weight(1f)
@@ -64,7 +72,7 @@ fun JobPanelView(model: JobPanelViewModel) {
 
                 BossConfigDropdown(
                     label = "经验要求",
-                    items = AppConfig.getBossConfig()?.experience ?: emptyMap(),
+                    items = model.bossConfig?.experience ?: emptyMap(),
                     selectedValue = model.bossFilter.experience,
                     onValueChange = { model.bossFilter = model.bossFilter.copy(experience = it) },
                     modifier = Modifier.weight(1f)
@@ -72,7 +80,7 @@ fun JobPanelView(model: JobPanelViewModel) {
 
                 BossConfigDropdown(
                     label = "学历要求",
-                    items = AppConfig.getBossConfig()?.degree ?: emptyMap(),
+                    items = model.bossConfig?.degree ?: emptyMap(),
                     selectedValue = model.bossFilter.degree,
                     onValueChange = { model.bossFilter = model.bossFilter.copy(degree = it) },
                     modifier = Modifier.weight(1f)
@@ -85,7 +93,7 @@ fun JobPanelView(model: JobPanelViewModel) {
             ) {
                 BossConfigDropdown(
                     label = "公司规模",
-                    items = AppConfig.getBossConfig()?.scale ?: emptyMap(),
+                    items = model.bossConfig?.scale ?: emptyMap(),
                     selectedValue = model.bossFilter.scale,
                     onValueChange = { model.bossFilter = model.bossFilter.copy(scale = it) },
                     modifier = Modifier.weight(1f)
@@ -93,7 +101,7 @@ fun JobPanelView(model: JobPanelViewModel) {
 
                 BossConfigDropdown(
                     label = "城市",
-                    items = AppConfig.getBossConfig()?.city ?: emptyMap(),
+                    items = model.bossConfig?.city ?: emptyMap(),
                     selectedValue = model.bossFilter.city,
                     onValueChange = { model.bossFilter = model.bossFilter.copy(city = it) },
                     modifier = Modifier.weight(1f)
@@ -101,7 +109,7 @@ fun JobPanelView(model: JobPanelViewModel) {
 
                 BossConfigDropdown(
                     label = "薪资范围",
-                    items = AppConfig.getBossConfig()?.salary ?: emptyMap(),
+                    items = model.bossConfig?.salary ?: emptyMap(),
                     selectedValue = model.bossFilter.salary,
                     onValueChange = { model.bossFilter = model.bossFilter.copy(salary = it) },
                     modifier = Modifier.weight(1f)

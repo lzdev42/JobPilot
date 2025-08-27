@@ -2,6 +2,7 @@ package xyz.emuci.jobpilot
 
 import ai.AiManager
 import utils.AppConfig
+import kotlinx.coroutines.runBlocking
 
 object AppInitializer {
     private var isInitialized = false
@@ -16,8 +17,10 @@ object AppInitializer {
     private fun init(){
         AiManager.initGemini()
         
-        // 创建默认Boss配置文件
-        AppConfig.createDefaultBossConfig()
+        // 每次启动预加载Boss配置
+        runBlocking {
+            AppConfig.getBossConfig()
+        }
         
         isInitialized = true
     }

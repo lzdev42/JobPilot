@@ -31,6 +31,14 @@ class JobPanelViewModel(val seekerType: SeekerType): ViewModel() {
     var bossSeeker: BossJobSeeker? = null
     var job51Seeker: BossJobSeeker? = null
     var liepinSeeker: BossJobSeeker? = null
+    
+    // Boss配置状态
+    var bossConfig by mutableStateOf<utils.BossConfig?>(null)
+        private set
+    
+    // 加载状态
+    var isBossConfigLoading by mutableStateOf(false)
+        private set
     // 关键词状态 (注释掉原有的多关键词方式)
     // private var _keywords = mutableStateListOf<String>()
     // val keywords: List<String> = _keywords
@@ -61,7 +69,35 @@ class JobPanelViewModel(val seekerType: SeekerType): ViewModel() {
     
     // 当前运行的协程Job
     private var currentJob: Job? = null
-
+    
+    init {
+        // 初始化时加载Boss配置
+        viewModelScope.launch {
+            loadBossConfig()
+        }
+    }
+    
+    /**
+     * 加载Boss配置
+     */
+    private suspend fun loadBossConfig() {
+        try {
+            isBossConfigLoading = true
+            logViewModel.addLog("正在加载最新Boss配置...")
+            
+            bossConfig = AppConfig.getBossConfig()
+            
+            if (bossConfig != null) {
+                logViewModel.addLog("Boss配置加载完成")
+            } else {
+                logViewModel.addLog("Boss配置加载失败")
+            }
+        } catch (e: Exception) {
+            logViewModel.addLog("加载Boss配置失败: ${e.message}")
+        } finally {
+            isBossConfigLoading = false
+        }
+    }
 
     fun startJobSeeker() {
         if (isRunning) {

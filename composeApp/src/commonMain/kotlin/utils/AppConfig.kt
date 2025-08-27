@@ -2,6 +2,8 @@ package utils
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -39,9 +41,15 @@ object AppConfig {
     private const val BLACKLIST_FILE_NAME = "blacklist.json"
     private const val SUBMITTED_JOBS_FILE_NAME = "submitted_history.json"
 
+    // Boss配置在线CDN地址
+    private const val BOSS_CONFIG_CDN_URL = "https://cdn.jsdelivr.net/gh/lzdev42/JobPilot@main/bossconfig.json"
+
     // 缓存的配置对象
     private var _settings: UserSettings? = null
     private var _bossConfig: BossConfig? = null
+    
+    // HTTP客户端实例
+    private val httpClient = HttpRequestor()
     
     // 运行时debug开关，不保存到配置文件
     var isDebugMode: Boolean = false
@@ -260,45 +268,31 @@ object AppConfig {
             .replace("{{JOB_DESCRIPTION}}", "PLACEHOLDER_FOR_JD") // 临时占位符，将在AI调用时替换
     }
 
-    fun getBossConfig(): BossConfig? {
+    suspend fun getBossConfig(): BossConfig? {
         if (_bossConfig == null) {
-            val configPath = getBossConfigPath()
-            if (configPath != null) {
-                try {
-                    val jsonString = File(configPath).readText()
-                    _bossConfig = jsonFormat.decodeFromString<BossConfig>(jsonString)
-                } catch (e: Exception) {
-                    // 错误日志：无法读取Boss配置，这里暂时保留System.err输出
-                    System.err.println("无法读取 Boss 配置: ${e.message}")
-                }
-            }
+            _bossConfig = loadBossConfigFromCDN()
         }
         return _bossConfig
     }
-
-    private fun getBossConfigPath(): String? {
-        // 优先使用用户配置目录中的bossconfig.json
-        val userBossConfig = File(getUserConfigDirectory(), "bossconfig.json")
-        if (userBossConfig.exists()) {
-            return userBossConfig.absolutePath
-        }
-        
-        // 如果用户配置目录中没有，从资源中读取
-        val resourcePath = "composeResources/files/bossconfig.json"
-        val resourceUrl = AppConfig::class.java.classLoader.getResource(resourcePath)
-        if (resourceUrl != null) return resourceUrl.path
-
-        val possiblePaths = listOf(
-            "composeResources/files/bossconfig.json",
-            "src/desktopMain/composeResources/files/bossconfig.json",
-            "files/bossconfig.json"
-        )
-        for (path in possiblePaths) {
-            val file = File(path)
-            if (file.exists()) return file.absolutePath
+    
+    private suspend fun loadBossConfigFromCDN(): BossConfig? {
+        try {
+            val result = httpClient.get(BOSS_CONFIG_CDN_URL)
+            if (result.isSuccess) {
+                val jsonString = result.getOrThrow()
+                val config = jsonFormat.decodeFromString<BossConfig>(jsonString)
+                println("已从CDN获取Boss配置")
+                return config
+            } else {
+                System.err.println("获取Boss配置失败: ${result.exceptionOrNull()?.message}")
+            }
+        } catch (e: Exception) {
+            System.err.println("获取Boss配置失败: ${e.message}")
         }
         return null
     }
+
+
 
     private fun getUserConfigDirectory(): File {
         val userHome = System.getProperty("user.home")
@@ -324,34 +318,7 @@ object AppConfig {
         return dir
     }
 
-    /**
-     * 创建默认的Boss配置文件
-     * 每次启动都会从项目资源重新复制bossconfig.json到用户配置目录
-     * 这是一个防呆策略，确保配置文件始终是最新的
-     */
-    fun createDefaultBossConfig() {
-        try {
-            val userConfigDir = getUserConfigDirectory()
-            val targetBossConfig = File(userConfigDir, "bossconfig.json")
-            
-            // 从资源文件复制（每次都重新复制，覆盖已存在的文件）
-            val resourcePath = "composeResources/files/bossconfig.json"
-            val resourceStream = AppConfig::class.java.classLoader.getResourceAsStream(resourcePath)
-            
-            if (resourceStream != null) {
-                resourceStream.use { input ->
-                    targetBossConfig.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                }
-                println("Boss配置文件已更新到: ${targetBossConfig.absolutePath}")
-            } else {
-                System.err.println("无法找到Boss配置资源文件: $resourcePath")
-            }
-        } catch (e: Exception) {
-            System.err.println("创建Boss配置文件失败: ${e.message}")
-        }
-    }
+
 
     private fun getUserConfigFile(): File = File(getUserConfigDirectory(), CONFIG_FILE_NAME)
     private fun getBlacklistFile(): File = File(getUserConfigDirectory(), BLACKLIST_FILE_NAME)
