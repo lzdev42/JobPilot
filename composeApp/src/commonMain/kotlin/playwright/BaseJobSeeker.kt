@@ -1,14 +1,8 @@
 package playwright
 
 import com.microsoft.playwright.*
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext // 协程上下文切换
 import logview.LogViewModel
-import java.io.BufferedReader
-import java.io.File
-import java.io.InputStreamReader
-import java.nio.file.Paths
 
 abstract class BaseJobSeeker(
     protected val viewModel: LogViewModel,
@@ -22,92 +16,11 @@ abstract class BaseJobSeeker(
     protected abstract val loginUrl: String
     protected abstract val homeUrl: String
 
-    // 查找 Playwright JAR 包的路径，用于后续的 CLI 调用
-    private suspend fun findPlaywrightJarPath(): String? = withContext(Dispatchers.IO) {
-        // 尝试通过 Playwright CLI 类的 CodeSource 来定位 JAR。
-        // 注意：这种定位方式在不同打包和运行环境下可能需要调整。
-        try {
-            val cliClass = Class.forName("com.microsoft.playwright.CLI")
-            val protectionDomain = cliClass.protectionDomain
-            val codeSource = protectionDomain.codeSource
-            if (codeSource != null) {
-                val location = codeSource.location
-                if (location != null) {
-                    var path = Paths.get(location.toURI()).toString()
-                    // 检查路径是否指向一个有效的 Playwright JAR (非驱动包)
-                    if (path.contains("playwright") && path.endsWith(".jar") && !path.contains("playwright-driver-bundle")) {
-                        return@withContext path
-                    }
-                    // 如果上面的方法不行 (比如在IDE中是classes目录)，尝试扫描整个 classpath
-                    val classpath = System.getProperty("java.class.path")
-                    val classpathEntries = classpath.split(File.pathSeparatorChar)
-                    // 优先找不含 "-driver-bundle" 和 "playwright-cli" (有时cli是单独的小jar) 的主库
-                    return@withContext classpathEntries.firstOrNull {
-                        it.contains("playwright") && it.endsWith(".jar") && !it.contains("-driver-bundle") && !it.contains("playwright-cli")
-                    } ?: classpathEntries.firstOrNull { // 如果没找到，放宽条件再找一次
-                        it.contains("playwright") && it.endsWith(".jar")
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            viewModel.addLog("查找 Playwright JAR 时出错: ${e.message}")
-            //  e.printStackTrace() // 调试时可以打开，帮助定位问题
-        }
-        return@withContext null // 未找到JAR
-    }
-
-    // 准备 Chromium 环境并记录相关日志
-    private suspend fun prepareChromiumAndLog() {
-        viewModel.addLog("开始准备 Chromium 并记录日志...")
-
-        val playwrightJarPath = findPlaywrightJarPath()
-        if (playwrightJarPath == null) {
-            viewModel.addLog("[错误] 未能定位到 Playwright JAR 文件。")
-            viewModel.addLog("将无法通过 Playwright CLI 准备 Chromium，相关日志不会被捕获。")
-            viewModel.addLog("Playwright 将尝试其默认的浏览器设置流程，请留意控制台输出。")
-            return // JAR未找到，后续让Playwright自行处理
-        }
-
-        viewModel.addLog("找到 Playwright JAR: $playwrightJarPath")
-        viewModel.addLog("准备执行 Playwright CLI: install chromium...")
-
-        try {
-            // 在IO线程中执行外部进程并捕获输出
-            withContext(Dispatchers.IO) {
-                val javaExecutable = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java"
-                val processBuilder = ProcessBuilder(
-                    javaExecutable,                 // Java 可执行文件路径
-                    "-cp",
-                    playwrightJarPath,              // Playwright JAR 的 classpath
-                    "com.microsoft.playwright.CLI", // Playwright CLI 的主类
-                    "install",                      // CLI 命令：安装
-                    "chromium"                      // CLI 参数：指定 chromium
-                )
-                processBuilder.redirectErrorStream(true) // 合并标准输出和标准错误流
-
-                val process = processBuilder.start()
-                val reader = BufferedReader(InputStreamReader(process.inputStream))
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    viewModel.addLog("[CLI 日志] $line") // 将CLI的每行输出添加到应用日志
-                }
-                val exitCode = process.waitFor() // 等待命令执行完成
-                if (exitCode == 0) {
-                    viewModel.addLog("Playwright CLI 'install chromium' 命令执行成功。")
-                } else {
-                    viewModel.addLog("[错误] Playwright CLI 'install chromium' 命令执行失败，退出码: $exitCode。请检查日志详情。")
-                }
-            }
-        } catch (e: Exception) {
-            viewModel.addLog("[错误] 执行 'install chromium' CLI 命令时发生异常: ${e.message}")
-            // e.printStackTrace() // 调试时可以打开
-        }
-    }
 
     // 初始化浏览器环境
     protected suspend fun init() {
-        // 首先尝试准备 Chromium 并捕获其安装/准备日志
-        prepareChromiumAndLog()
+        // 由 Playwright 自动检测和下载所需浏览器（首次运行可能较慢）
+        viewModel.addLog("正在检查并准备 Chromium... 如未安装将自动下载（首次可能较慢）")
 
         viewModel.addLog("开始初始化 Playwright 主实例...")
         val playwright = Playwright.create() // 创建 Playwright 实例
@@ -129,7 +42,7 @@ abstract class BaseJobSeeker(
                 .setHeadless(config.headless)
                 .setArgs(args)
         )
-        viewModel.addLog("Chromium 浏览器已启动。准备创建新的浏览器上下文...")
+        viewModel.addLog("Chromium 已准备并启动（若需下载已自动完成）。准备创建新的浏览器上下文...")
 
         context = browser.newContext( // 创建浏览器上下文
             Browser.NewContextOptions()
