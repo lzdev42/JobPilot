@@ -10,6 +10,8 @@ import androidx.compose.material.Button
 import androidx.compose.material.Switch
 import androidx.compose.material.Text
 import androidx.compose.material.TextField
+import androidx.compose.material.AlertDialog
+import androidx.compose.material.OutlinedButton
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
@@ -18,13 +20,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import inputview.InputType
 import inputview.InputViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import utils.AppConfig
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import utils.SystemFilePicker
+import java.io.File
 
 @Composable
 @Preview
@@ -131,5 +140,130 @@ fun SettingView(viewModel: InputViewModel, modifier: Modifier = Modifier) {
         ) {
             Text("保存")
         }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // 配置管理部分
+        Text("配置管理", modifier = Modifier.padding(bottom = 8.dp))
+        
+        ConfigManagementSection()
+    }
+}
+
+@Composable
+fun ConfigManagementSection() {
+    val coroutineScope = rememberCoroutineScope()
+    var showClearDialog by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf("") }
+    
+    Column {
+        // 导出配置按钮
+        OutlinedButton(
+            onClick = {
+                coroutineScope.launch {
+                    try {
+                        val selectedDir = SystemFilePicker.pickDirectory("选择导出目录")
+                        if (selectedDir != null) {
+                            val success = AppConfig.exportConfigs(selectedDir)
+                            statusMessage = if (success) {
+                                "配置导出成功: ${selectedDir.absolutePath}"
+                            } else {
+                                "配置导出失败"
+                            }
+                        }
+                    } catch (e: Exception) {
+                        statusMessage = "导出失败: ${e.message}"
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("导出配置")
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // 导入配置按钮
+        OutlinedButton(
+            onClick = {
+                coroutineScope.launch {
+                    try {
+                        val selectedDir = SystemFilePicker.pickDirectory("选择配置目录")
+                        if (selectedDir != null) {
+                            val success = AppConfig.importConfigs(selectedDir)
+                            statusMessage = if (success) {
+                                "配置导入成功"
+                            } else {
+                                "配置导入失败"
+                            }
+                        }
+                    } catch (e: Exception) {
+                        statusMessage = "导入失败: ${e.message}"
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("导入配置")
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // 清空配置按钮
+        Button(
+            onClick = { showClearDialog = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = androidx.compose.material.ButtonDefaults.buttonColors(
+                backgroundColor = Color.Red.copy(alpha = 0.1f),
+                contentColor = Color.Red
+            )
+        ) {
+            Text("清空所有配置")
+        }
+        
+        // 状态消息
+        if (statusMessage.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = statusMessage,
+                color = if (statusMessage.contains("成功")) Color.Green else Color.Red,
+                modifier = Modifier.padding(8.dp)
+            )
+        }
+    }
+    
+    // 清空确认对话框
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("确认清空配置") },
+            text = { Text("此操作将清空所有用户配置、黑名单和投递历史，且无法撤销。确定要继续吗？") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            withContext(Dispatchers.IO) {
+                                if (AppConfig.clearAllConfigs()) {
+                                    statusMessage = "配置清空成功"
+                                } else {
+                                    statusMessage = "配置清空失败"
+                                }
+                            }
+                        }
+                        showClearDialog = false
+                    },
+                    colors = androidx.compose.material.ButtonDefaults.buttonColors(
+                        backgroundColor = Color.Red
+                    )
+                ) {
+                    Text("确认清空", color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showClearDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }

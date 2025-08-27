@@ -141,6 +141,116 @@ object AppConfig {
         // 业务逻辑层（如ApplyCheck）有责任重新加载自己的数据。
     }
 
+    /**
+     * 清空所有用户配置文件，恢复到默认状态
+     * 注意：不会影响Boss配置等应用内置资源
+     */
+    fun clearAllConfigs(): Boolean {
+        return try {
+            // 1. 重置用户设置为默认值
+            _settings = UserSettings()
+            saveConfig(_settings!!, getUserConfigFile())
+            
+            // 2. 清空黑名单
+            saveConfig(Blacklist(), getBlacklistFile())
+            
+            // 3. 清空投递历史
+            saveConfig(emptyList<SubmittedJob>(), getSubmittedJobsFile())
+            
+            // 4. 清除用户配置缓存（保留Boss配置缓存）
+            _settings = null
+            // 注意：不清除_bossConfig，因为它是应用内置资源
+            
+            // 5. 通知ApplyCheck重新加载数据
+            try {
+                ApplyCheck.reload()
+            } catch (e: Exception) {
+                System.err.println("ApplyCheck重新加载失败: ${e.message}")
+            }
+            
+            true
+        } catch (e: Exception) {
+            System.err.println("清空配置失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 导出用户配置到指定目录
+     * 直接拷贝配置文件
+     */
+    fun exportConfigs(exportDir: File): Boolean {
+        return try {
+            if (!exportDir.exists()) {
+                exportDir.mkdirs()
+            }
+            
+            val configDir = getUserConfigDirectory()
+            val filesToExport = listOf(
+                CONFIG_FILE_NAME,
+                BLACKLIST_FILE_NAME,
+                SUBMITTED_JOBS_FILE_NAME
+            )
+            
+            filesToExport.forEach { fileName ->
+                val sourceFile = File(configDir, fileName)
+                val targetFile = File(exportDir, fileName)
+                
+                if (sourceFile.exists()) {
+                    sourceFile.copyTo(targetFile, overwrite = true)
+                }
+            }
+            
+            true
+        } catch (e: Exception) {
+            System.err.println("导出配置失败: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 从指定目录导入用户配置
+     * 直接拷贝配置文件并重新加载
+     */
+    fun importConfigs(importDir: File): Boolean {
+        return try {
+            if (!importDir.exists() || !importDir.isDirectory) {
+                throw IllegalArgumentException("导入目录不存在")
+            }
+            
+            val configDir = getUserConfigDirectory()
+            val filesToImport = listOf(
+                CONFIG_FILE_NAME,
+                BLACKLIST_FILE_NAME,
+                SUBMITTED_JOBS_FILE_NAME
+            )
+            
+            filesToImport.forEach { fileName ->
+                val sourceFile = File(importDir, fileName)
+                val targetFile = File(configDir, fileName)
+                
+                if (sourceFile.exists()) {
+                    sourceFile.copyTo(targetFile, overwrite = true)
+                }
+            }
+            
+            // 重新加载所有配置
+            reloadAllConfigs()
+            
+            // 通知ApplyCheck重新加载数据
+            try {
+                ApplyCheck.reload()
+            } catch (e: Exception) {
+                System.err.println("ApplyCheck重新加载失败: ${e.message}")
+            }
+            
+            true
+        } catch (e: Exception) {
+            System.err.println("导入配置失败: ${e.message}")
+            false
+        }
+    }
+
     fun getFilledPrompt(): String {
         return prompt
             .replace("{{USER_PROFILE}}", resume)
