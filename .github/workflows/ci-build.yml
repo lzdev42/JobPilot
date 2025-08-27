@@ -83,6 +83,7 @@ jobs:
       # 获取版本号
       - name: Get Package Version
         id: get_version
+        shell: bash
         run: |
           VERSION=$(grep 'packageVersion = ' composeApp/build.gradle.kts | cut -d '"' -f 2)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
