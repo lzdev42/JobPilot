@@ -99,23 +99,18 @@ jobs:
           ls -la composeApp/build/compose/binaries/main-release/app/
 
       # Windows 构建
-      - name: Build Windows Distributable
+      - name: Build with Gradle (Windows)
         if: matrix.platform == 'windows'
-        run: |
-          echo "Building Windows distributable for ${{ matrix.arch }}..."
-          ./gradlew.bat -Pcompose.desktop.windows.msi.enabled=false :composeApp:createDistributable --info
-          ls -la composeApp/build/compose/desktop/distributable/
+        run: ./gradlew.bat -Pcompose.desktop.windows.msi.enabled=false :composeApp:createDistributable
 
       # Windows ZIP 打包
-      - name: Package Windows distributable into ZIP
+      - name: Package Windows distributable into a ZIP
         if: matrix.platform == 'windows'
-        shell: pwsh
         run: |
           $distDir = "composeApp/build/compose/desktop/distributable"
-          $zipFile = "JobPilot-${{ matrix.asset_name }}.zip"
+          $zipFile = "JobPilot-windows-${{ matrix.arch }}.zip"
           Compress-Archive -Path "$distDir/*" -DestinationPath $zipFile
-          echo "Created ZIP file: $zipFile"
-          ls -la $zipFile
+        shell: pwsh
 
       # Linux 构建 - 特殊处理
       - name: Build Linux AppImage
@@ -186,13 +181,12 @@ jobs:
           retention-days: 30
 
       # 上传 Windows 产物
-      - name: Upload Windows ZIP
+      - name: Upload Artifact (Windows)
         if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v4
         with:
           name: JobPilot-${{ matrix.asset_name }}
-          path: JobPilot-${{ matrix.asset_name }}.zip
-          retention-days: 30
+          path: JobPilot-windows-${{ matrix.arch }}.zip
 
       # 上传 Linux AppImage
       - name: Upload Linux AppImage
