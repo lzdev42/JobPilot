@@ -99,12 +99,23 @@ jobs:
           ls -la composeApp/build/compose/binaries/main-release/app/
 
       # Windows 构建
-      - name: Build Windows EXE
+      - name: Build Windows Distributable
         if: matrix.platform == 'windows'
         run: |
-          echo "Building Windows EXE for ${{ matrix.arch }}..."
-          ./gradlew.bat packageReleaseExe --info
-          ls -la composeApp/build/compose/binaries/main-release/app/
+          echo "Building Windows distributable for ${{ matrix.arch }}..."
+          ./gradlew.bat -Pcompose.desktop.windows.msi.enabled=false :composeApp:createDistributable --info
+          ls -la composeApp/build/compose/desktop/distributable/
+
+      # Windows ZIP 打包
+      - name: Package Windows distributable into ZIP
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $distDir = "composeApp/build/compose/desktop/distributable"
+          $zipFile = "JobPilot-${{ matrix.asset_name }}.zip"
+          Compress-Archive -Path "$distDir/*" -DestinationPath $zipFile
+          echo "Created ZIP file: $zipFile"
+          ls -la $zipFile
 
       # Linux 构建 - 特殊处理
       - name: Build Linux AppImage
@@ -175,12 +186,12 @@ jobs:
           retention-days: 30
 
       # 上传 Windows 产物
-      - name: Upload Windows EXE
+      - name: Upload Windows ZIP
         if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v4
         with:
           name: JobPilot-${{ matrix.asset_name }}
-          path: composeApp/build/compose/binaries/main-release/app/xyz.emuci.jobpilot-${{ env.VERSION }}.exe
+          path: JobPilot-${{ matrix.asset_name }}.zip
           retention-days: 30
 
       # 上传 Linux AppImage
@@ -205,7 +216,7 @@ jobs:
       - name: Display structure of downloaded files
         run: |
           echo "Downloaded artifacts structure:"
-          find artifacts -type f -name "*.dmg" -o -name "*.AppImage" -o -name "*.exe" | sort
+          find artifacts -type f -name "*.dmg" -o -name "*.AppImage" -o -name "*.zip" | sort
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -220,5 +231,5 @@ jobs:
             artifacts/JobPilot-macos-apple-silicon/*.dmg
             artifacts/JobPilot-linux-x86_64/*.AppImage
             artifacts/JobPilot-linux-aarch64/*.AppImage
-            artifacts/JobPilot-windows-x86_64/*.exe
-            artifacts/JobPilot-windows-arm64/*.exe
+            artifacts/JobPilot-windows-x86_64/*.zip
+            artifacts/JobPilot-windows-arm64/*.zip
