@@ -1,7 +1,6 @@
 package playwright
 
 import com.microsoft.playwright.*
-import com.microsoft.playwright.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
@@ -20,6 +19,14 @@ abstract class BaseJobSeeker(
     protected var submittedCount: Int = 0
     protected abstract val loginUrl: String
     protected abstract val homeUrl: String
+
+    private fun isPlaywrightInstallLog(line: String): Boolean {
+        val l = line.lowercase()
+        return l.contains("pw:install") || l.contains("pw:download") ||
+            l.contains("installing") || l.contains("downloading") ||
+            l.contains("extracting") || l.contains("verifying") ||
+            l.contains("chromium") || l.contains("driver")
+    }
 
 
     // 初始化浏览器环境
@@ -41,32 +48,56 @@ abstract class BaseJobSeeker(
                 "PLAYWRIGHT_BROWSERS_PATH" to browsersPath,
                 "TMPDIR" to tmpPath
             ))
-            .setLogger(object : Logger {
-                override fun log(name: String, message: String) {
-                    // 将安装/下载及驱动相关日志作为常规日志输出；其余仅在需要时可扩展
-                    if (
-                        name.contains("pw:install") ||
-                        name.contains("pw:download") ||
-                        message.contains("install", ignoreCase = true) ||
-                        message.contains("download", ignoreCase = true) ||
-                        message.contains("driver", ignoreCase = true)
-                    ) {
-                        viewModel.addLog("[Playwright] $message")
-                    }
-                }
-            })
 
         viewModel.addLog("开始初始化 Playwright 主实例...")
+
+        // 将 Playwright 的安装/下载输出以常规日志展示（不依赖应用调试开关）
+        val originalErr = System.err
+        val originalOut = System.out
+        val errTee = java.io.PrintStream(object : java.io.OutputStream() {
+            private val buffer = StringBuilder()
+            override fun write(b: Int) {
+                originalErr.write(b)
+                val ch = b.toChar()
+                buffer.append(ch)
+                if (ch == '\n') {
+                    val line = buffer.toString().trimEnd()
+                    buffer.setLength(0)
+                    if (isPlaywrightInstallLog(line)) {
+                        viewModel.addLog("[Playwright] $line")
+                    }
+                }
+            }
+        }, true, Charsets.UTF_8)
+        val outTee = java.io.PrintStream(object : java.io.OutputStream() {
+            private val buffer = StringBuilder()
+            override fun write(b: Int) {
+                originalOut.write(b)
+                val ch = b.toChar()
+                buffer.append(ch)
+                if (ch == '\n') {
+                    val line = buffer.toString().trimEnd()
+                    buffer.setLength(0)
+                    if (isPlaywrightInstallLog(line)) {
+                        viewModel.addLog("[Playwright] $line")
+                    }
+                }
+            }
+        }, true, Charsets.UTF_8)
 
         // 在IO线程中创建并启动，若首次运行将阻塞直至下载完成
         val playwright = withContext(Dispatchers.IO) {
             try {
+                System.setErr(errTee)
+                System.setOut(outTee)
                 Playwright.create(options)
-            } catch (e: Exception) {
-                // 某些环境下可能因临时目录残留或权限问题导致 driver 创建失败，清理后重试一次
+        } catch (e: Exception) {
                 viewModel.addLog("[警告] 创建 Playwright 失败：${e.message}，尝试清理临时目录后重试一次…")
                 runCatching { File(tmpPath).deleteRecursively(); File(tmpPath).mkdirs() }
                 Playwright.create(options)
+            } finally {
+                System.setErr(originalErr)
+                System.setOut(originalOut)
             }
         }
         viewModel.addLog("Playwright 主实例初始化完成。准备启动 Chromium 浏览器...")
@@ -83,11 +114,18 @@ abstract class BaseJobSeeker(
         )
         
         browser = withContext(Dispatchers.IO) {
-            playwright.chromium().launch( // 启动 Chromium（如需下载会在此阶段阻塞）
-                BrowserType.LaunchOptions()
-                    .setHeadless(config.headless)
-                    .setArgs(args)
-            )
+            try {
+                System.setErr(errTee)
+                System.setOut(outTee)
+                playwright.chromium().launch(
+            BrowserType.LaunchOptions()
+                .setHeadless(config.headless)
+                .setArgs(args)
+        )
+            } finally {
+                System.setErr(originalErr)
+                System.setOut(originalOut)
+            }
         }
         viewModel.addLog("Chromium 已准备并启动（若需下载已自动完成）。准备创建新的浏览器上下文...")
 
