@@ -1,4 +1,4 @@
-name: Multi-Platform Release
+name: Multi-Platform Dev
 
 on:
   push:
