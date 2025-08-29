@@ -1,8 +1,13 @@
 package playwright
 
 import com.microsoft.playwright.*
+import com.microsoft.playwright.Logger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import logview.LogViewModel
+import java.io.File
+import java.nio.file.Paths
 
 abstract class BaseJobSeeker(
     protected val viewModel: LogViewModel,
@@ -22,8 +27,48 @@ abstract class BaseJobSeeker(
         // 由 Playwright 自动检测和下载所需浏览器（首次运行可能较慢）
         viewModel.addLog("正在检查并准备 Chromium... 如未安装将自动下载（首次可能较慢）")
 
+        // 确保可写缓存与临时目录，避免在只读或 noexec 目录导致 driver/下载失败
+        val userHome = System.getProperty("user.home") ?: "."
+        val browsersPath = Paths.get(userHome, ".cache", "ms-playwright").toFile().apply { mkdirs() }.absolutePath
+        val tmpPath = Paths.get(userHome, ".cache", "jobpilot-tmp").toFile().apply { mkdirs() }.absolutePath
+
+        // 构建 Playwright 创建选项：
+        // - 开启安装/下载相关日志（不依赖应用的调试开关）
+        // - 指定可写目录，保证 driver 创建与浏览器下载可以进行
+        val options = Playwright.CreateOptions()
+            .setEnv(mapOf(
+                "DEBUG" to "pw:install,pw:download",
+                "PLAYWRIGHT_BROWSERS_PATH" to browsersPath,
+                "TMPDIR" to tmpPath
+            ))
+            .setLogger(object : Logger {
+                override fun log(name: String, message: String) {
+                    // 将安装/下载及驱动相关日志作为常规日志输出；其余仅在需要时可扩展
+                    if (
+                        name.contains("pw:install") ||
+                        name.contains("pw:download") ||
+                        message.contains("install", ignoreCase = true) ||
+                        message.contains("download", ignoreCase = true) ||
+                        message.contains("driver", ignoreCase = true)
+                    ) {
+                        viewModel.addLog("[Playwright] $message")
+                    }
+                }
+            })
+
         viewModel.addLog("开始初始化 Playwright 主实例...")
-        val playwright = Playwright.create() // 创建 Playwright 实例
+
+        // 在IO线程中创建并启动，若首次运行将阻塞直至下载完成
+        val playwright = withContext(Dispatchers.IO) {
+            try {
+                Playwright.create(options)
+            } catch (e: Exception) {
+                // 某些环境下可能因临时目录残留或权限问题导致 driver 创建失败，清理后重试一次
+                viewModel.addLog("[警告] 创建 Playwright 失败：${e.message}，尝试清理临时目录后重试一次…")
+                runCatching { File(tmpPath).deleteRecursively(); File(tmpPath).mkdirs() }
+                Playwright.create(options)
+            }
+        }
         viewModel.addLog("Playwright 主实例初始化完成。准备启动 Chromium 浏览器...")
 
         // 设置浏览器启动参数，使其在后台运行
@@ -37,11 +82,13 @@ abstract class BaseJobSeeker(
             "--disable-session-crashed-bubble" // 禁用会话崩溃气泡
         )
         
-        browser = playwright.chromium().launch( // 启动 Chromium
-            BrowserType.LaunchOptions()
-                .setHeadless(config.headless)
-                .setArgs(args)
-        )
+        browser = withContext(Dispatchers.IO) {
+            playwright.chromium().launch( // 启动 Chromium（如需下载会在此阶段阻塞）
+                BrowserType.LaunchOptions()
+                    .setHeadless(config.headless)
+                    .setArgs(args)
+            )
+        }
         viewModel.addLog("Chromium 已准备并启动（若需下载已自动完成）。准备创建新的浏览器上下文...")
 
         context = browser.newContext( // 创建浏览器上下文
