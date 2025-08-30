@@ -46,7 +46,9 @@ abstract class BaseJobSeeker(
             .setEnv(mapOf(
                 "DEBUG" to "pw:install,pw:download",
                 "PLAYWRIGHT_BROWSERS_PATH" to browsersPath,
-                "TMPDIR" to tmpPath
+                "TMPDIR" to tmpPath,
+                "PLAYWRIGHT_DOWNLOAD_HOST" to "https://playwright.azureedge.net",
+                "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD" to "false"
             ))
 
         viewModel.addLog("开始初始化 Playwright 主实例...")
