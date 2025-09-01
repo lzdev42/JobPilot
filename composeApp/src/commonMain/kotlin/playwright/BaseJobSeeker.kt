@@ -39,6 +39,22 @@ abstract class BaseJobSeeker(
         val browsersPath = Paths.get(userHome, ".cache", "ms-playwright").toFile().apply { mkdirs() }.absolutePath
         val tmpPath = Paths.get(userHome, ".cache", "jobpilot-tmp").toFile().apply { mkdirs() }.absolutePath
 
+        // 在 Linux 下：将 JVM 的临时目录指向可写可执行目录，并确保权限（Playwright 驱动解压依赖此路径）
+        val osName = System.getProperty("os.name")?.lowercase() ?: ""
+        if (osName.contains("linux")) {
+            System.setProperty("java.io.tmpdir", tmpPath)
+            runCatching {
+                val tmpDir = File(tmpPath)
+                val browsersDir = File(browsersPath)
+                tmpDir.setReadable(true, true)
+                tmpDir.setWritable(true, true)
+                tmpDir.setExecutable(true, true)
+                browsersDir.setReadable(true, true)
+                browsersDir.setWritable(true, true)
+                browsersDir.setExecutable(true, true)
+            }
+        }
+
         // 构建 Playwright 创建选项：
         // - 开启安装/下载相关日志（不依赖应用的调试开关）
         // - 指定可写目录，保证 driver 创建与浏览器下载可以进行
@@ -47,6 +63,7 @@ abstract class BaseJobSeeker(
                 "DEBUG" to "pw:install,pw:download",
                 "PLAYWRIGHT_BROWSERS_PATH" to browsersPath,
                 "TMPDIR" to tmpPath,
+                "XDG_CACHE_HOME" to Paths.get(userHome, ".cache").toString(),
                 "PLAYWRIGHT_DOWNLOAD_HOST" to "https://playwright.azureedge.net",
                 "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD" to "false"
             ))
@@ -105,7 +122,7 @@ abstract class BaseJobSeeker(
         viewModel.addLog("Playwright 主实例初始化完成。准备启动 Chromium 浏览器...")
 
         // 设置浏览器启动参数，使其在后台运行
-        val args = listOf(
+        val baseArgs = listOf(
             "--window-position=0,0",  // 窗口位置
             "--window-size=1920,1080", // 窗口大小
             "--auto-open-devtools-for-tabs=false", // 不自动打开开发者工具
@@ -114,6 +131,8 @@ abstract class BaseJobSeeker(
             "--noerrdialogs", // 禁用错误对话框
             "--disable-session-crashed-bubble" // 禁用会话崩溃气泡
         )
+        val linuxSandboxArgs = if (osName.contains("linux")) listOf("--no-sandbox", "--disable-setuid-sandbox") else emptyList()
+        val args = baseArgs + linuxSandboxArgs
         
         browser = withContext(Dispatchers.IO) {
             try {
