@@ -16,6 +16,10 @@ abstract class BaseJobSeeker(
     protected lateinit var context: BrowserContext
     protected lateinit var page: Page
 
+    // 仅在首次检测到 Playwright 安装/下载日志时提示一次
+    @Volatile
+    private var downloadNoticeShown: Boolean = false
+
     protected var submittedCount: Int = 0
     protected abstract val loginUrl: String
     protected abstract val homeUrl: String
@@ -58,15 +62,21 @@ abstract class BaseJobSeeker(
         // 构建 Playwright 创建选项：
         // - 开启安装/下载相关日志（不依赖应用的调试开关）
         // - 指定可写目录，保证 driver 创建与浏览器下载可以进行
-        val options = Playwright.CreateOptions()
-            .setEnv(mapOf(
-                "DEBUG" to "pw:install,pw:download",
-                "PLAYWRIGHT_BROWSERS_PATH" to browsersPath,
-                "TMPDIR" to tmpPath,
-                "XDG_CACHE_HOME" to Paths.get(userHome, ".cache").toString(),
-                "PLAYWRIGHT_DOWNLOAD_HOST" to "https://playwright.azureedge.net",
-                "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD" to "false"
-            ))
+        // - Windows 下补充 TMP/TEMP，避免在只读或受限目录解压失败
+        val envMap = mutableMapOf(
+            "DEBUG" to "pw:install,pw:download",
+            "PLAYWRIGHT_BROWSERS_PATH" to browsersPath,
+            "XDG_CACHE_HOME" to Paths.get(userHome, ".cache").toString(),
+            "PLAYWRIGHT_DOWNLOAD_HOST" to "https://playwright.azureedge.net",
+            "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD" to "false"
+        )
+        if (osName.contains("windows")) {
+            envMap["TEMP"] = tmpPath
+            envMap["TMP"] = tmpPath
+        } else {
+            envMap["TMPDIR"] = tmpPath
+        }
+        val options = Playwright.CreateOptions().setEnv(envMap)
 
         viewModel.addLog("开始初始化 Playwright 主实例...")
 
@@ -83,6 +93,10 @@ abstract class BaseJobSeeker(
                     val line = buffer.toString().trimEnd()
                     buffer.setLength(0)
                     if (isPlaywrightInstallLog(line)) {
+                        if (!downloadNoticeShown) {
+                            viewModel.addLog("[Playwright] 正在下载浏览器组件，过程较慢且无法显示百分比，请耐心等待…")
+                            downloadNoticeShown = true
+                        }
                         viewModel.addLog("[Playwright] $line")
                     }
                 }
@@ -98,6 +112,10 @@ abstract class BaseJobSeeker(
                     val line = buffer.toString().trimEnd()
                     buffer.setLength(0)
                     if (isPlaywrightInstallLog(line)) {
+                        if (!downloadNoticeShown) {
+                            viewModel.addLog("[Playwright] 正在下载浏览器组件，过程较慢且无法显示百分比，请耐心等待…")
+                            downloadNoticeShown = true
+                        }
                         viewModel.addLog("[Playwright] $line")
                     }
                 }
@@ -110,10 +128,18 @@ abstract class BaseJobSeeker(
                 System.setErr(errTee)
                 System.setOut(outTee)
                 Playwright.create(options)
-        } catch (e: Exception) {
+            } catch (e: Exception) {
                 viewModel.addLog("[警告] 创建 Playwright 失败：${e.message}，尝试清理临时目录后重试一次…")
                 runCatching { File(tmpPath).deleteRecursively(); File(tmpPath).mkdirs() }
-                Playwright.create(options)
+                try {
+                    Playwright.create(options)
+                } catch (e2: Exception) {
+                    viewModel.addLog("[警告] 二次创建 Playwright 仍失败：${e2.message}，尝试切换镜像后再试…")
+                    // 切换下载镜像源后再尝试一次（常见于网络受限环境）
+                    envMap["PLAYWRIGHT_DOWNLOAD_HOST"] = "https://npmmirror.com/mirrors/playwright"
+                    val optionsMirror = Playwright.CreateOptions().setEnv(envMap)
+                    Playwright.create(optionsMirror)
+                }
             } finally {
                 System.setErr(originalErr)
                 System.setOut(originalOut)
@@ -139,10 +165,24 @@ abstract class BaseJobSeeker(
                 System.setErr(errTee)
                 System.setOut(outTee)
                 playwright.chromium().launch(
-            BrowserType.LaunchOptions()
-                .setHeadless(config.headless)
-                .setArgs(args)
-        )
+                    BrowserType.LaunchOptions()
+                        .setHeadless(config.headless)
+                        .setArgs(args)
+                )
+            } catch (e: Exception) {
+                // 若因浏览器未安装导致启动失败，记录并引导再次创建时触发安装
+                viewModel.addLog("[警告] 启动 Chromium 失败：${e.message}，将尝试再次初始化后重启…")
+                System.setErr(originalErr)
+                System.setOut(originalOut)
+                // 重新走一次创建流程（保留可能已切换的镜像设置）
+                System.setErr(errTee)
+                System.setOut(outTee)
+                val pw2 = Playwright.create(Playwright.CreateOptions().setEnv(envMap))
+                pw2.chromium().launch(
+                    BrowserType.LaunchOptions()
+                        .setHeadless(config.headless)
+                        .setArgs(args)
+                )
             } finally {
                 System.setErr(originalErr)
                 System.setOut(originalOut)
