@@ -34,12 +34,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import utils.SystemFilePicker
 import java.io.File
+import ai.gemini.GeminiConfig
+import ai.gemini.GeminiClient
 
 @Composable
 @Preview
 
 fun SettingView(viewModel: InputViewModel, modifier: Modifier = Modifier) {
     val textFromViewModel by viewModel.textFieldValue.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
     var debugMode by remember { mutableStateOf(AppConfig.isDebugMode) }
     
     // 投递次数限制状态
@@ -74,6 +77,57 @@ fun SettingView(viewModel: InputViewModel, modifier: Modifier = Modifier) {
             Modifier.fillMaxWidth(),
             label = { Text("Gemini AppKey") },
         )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // API Key 测试按钮和状态
+        var isTestingApiKey by remember { mutableStateOf(false) }
+        var apiKeyTestResult by remember { mutableStateOf<String?>(null) }
+        
+        Column {
+            OutlinedButton(
+                onClick = {
+                    if (textFromViewModel.isBlank()) {
+                        apiKeyTestResult = "请先输入 API Key"
+                        return@OutlinedButton
+                    }
+                    isTestingApiKey = true
+                    apiKeyTestResult = null
+                    coroutineScope.launch {
+                        try {
+                            val config = GeminiConfig(textFromViewModel)
+                            val client = GeminiClient(config)
+                            val result = withContext(Dispatchers.IO) {
+                                client.testApiKey()
+                            }
+                            if (result.isSuccess) {
+                                apiKeyTestResult = "✅ API Key 测试成功"
+                            } else {
+                                val errorMsg = result.exceptionOrNull()?.message ?: "未知错误"
+                                apiKeyTestResult = "❌ API Key 测试失败: $errorMsg"
+                            }
+                        } catch (e: Exception) {
+                            apiKeyTestResult = "❌ 测试失败: ${e.message}"
+                        } finally {
+                            isTestingApiKey = false
+                        }
+                    }
+                },
+                enabled = !isTestingApiKey && textFromViewModel.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (isTestingApiKey) "测试中..." else "测试 API Key")
+            }
+            
+            if (apiKeyTestResult != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = apiKeyTestResult!!,
+                    color = if (apiKeyTestResult!!.contains("成功")) Color.Green else Color.Red,
+                    modifier = Modifier.padding(start = 4.dp)
+                )
+            }
+        }
         
         Spacer(modifier = Modifier.height(16.dp))
         

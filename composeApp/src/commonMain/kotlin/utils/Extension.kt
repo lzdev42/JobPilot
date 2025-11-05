@@ -20,8 +20,24 @@ data class AiResponse(
  */
 fun String.parseJsonResponse(): Triple<Boolean, String, String> {
     return try {
+        val originalText = this.trim()
+
+        // 找到第一个 { 和最后一个 } 的位置
+        val firstBrace = originalText.indexOf('{')
+        val lastBrace = originalText.lastIndexOf('}')
+
+        if (firstBrace == -1 || lastBrace == -1 || firstBrace >= lastBrace) {
+            println("[ERROR] 响应中找不到有效的JSON格式")
+            println("[ERROR] 原始响应: $originalText")
+            return Triple(false, "响应格式错误：找不到JSON大括号", "")
+        }
+
+        // 提取 { 到 } 之间的内容（包含大括号）
+        val cleanedText = originalText.substring(firstBrace, lastBrace + 1)
+        println("[DEBUG] 清理后的JSON: $cleanedText")
+
         val json = Json { ignoreUnknownKeys = true }
-        val response = json.decodeFromString<AiResponse>(this.trim())
+        val response = json.decodeFromString<AiResponse>(cleanedText)
         Triple(response.match_status, response.reasoning, response.greeting_message)
     } catch (e: SerializationException) {
         // JSON解析错误，暂时保留println用于错误追踪

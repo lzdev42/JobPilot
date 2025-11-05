@@ -217,36 +217,110 @@ class BossJobSeeker(
 
         val searchUrl = buildSearchUrl(keyword, city)
         navigate(searchUrl)
+        viewModel.addLog("已导航至搜索页: $searchUrl")
+        println("--> [searchAndApply] 已导航至搜索页，等待列表加载...")
+        
         if (AppConfig.isDebugMode) {
             viewModel.addLog("[DEBUG] 已导航至搜索页，等待列表加载...")
         }
-        waitForSelector(Selectors.JOB_LIST_CONTAINER)
+        
+        // 等待职位列表容器出现
+        println("    [searchAndApply] 等待职位列表容器出现 (选择器: ${Selectors.JOB_LIST_CONTAINER})...")
+        try {
+            waitForSelector(Selectors.JOB_LIST_CONTAINER)
+            println("    [searchAndApply] ✓ 职位列表容器已出现")
+            viewModel.addLog("职位列表容器已加载")
+        } catch (e: Exception) {
+            println("    [searchAndApply] ✗ 等待职位列表容器超时: ${e.message}")
+            viewModel.addLog("错误：无法找到职位列表容器 - ${e.message}")
+            throw e
+        }
+
+        // 检查初始职位数量
+        val initialCount = page.locator(Selectors.JOB_CARD).count()
+        println("    [searchAndApply] 初始职位数量: $initialCount")
+        viewModel.addLog("初始职位数量: $initialCount")
+        
+        if (initialCount == 0) {
+            println("    [searchAndApply] ⚠️ 警告：初始职位数量为0，可能选择器不正确或页面结构已变化")
+            viewModel.addLog("警告：未找到任何职位，请检查选择器是否正确")
+            // 尝试打印页面相关信息以便调试
+            try {
+                val pageTitle = page.title()
+                val pageUrl = page.url()
+                println("    [searchAndApply] 当前页面标题: $pageTitle")
+                println("    [searchAndApply] 当前页面URL: $pageUrl")
+                // 尝试查找其他可能的列表容器
+                val alternativeSelectors = listOf(
+                    "div.job-list",
+                    "ul.job-list",
+                    "div[class*='job']",
+                    "li[class*='job']"
+                )
+                for (altSelector in alternativeSelectors) {
+                    val count = page.locator(altSelector).count()
+                    if (count > 0) {
+                        println("    [searchAndApply] 发现可能的替代选择器 '$altSelector' 找到 $count 个元素")
+                    }
+                }
+            } catch (e: Exception) {
+                println("    [searchAndApply] 获取页面信息失败: ${e.message}")
+            }
+        }
 
         if (AppConfig.isDebugMode) {
             viewModel.addLog("[DEBUG] 开始滚动页面以加载更多职位...")
         }
-        var previousCount = 0
+        var previousCount = initialCount
         var unchangedCount = 0
         while (unchangedCount < 2) {
+            // 先滚动到底部
+            println("    [searchAndApply] 执行滚动到底部...")
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            delay(2000)  // 等待新内容加载
+
+            // 然后检查职位数量是否增加
             val currentCount = page.locator(Selectors.JOB_CARD).count()
+            println("    [searchAndApply] 滚动后，当前职位数: $currentCount (之前: $previousCount)")
             if (AppConfig.isDebugMode) {
-                viewModel.addLog("[DEBUG] 滚动前，当前职位数: $currentCount")
+                viewModel.addLog("[DEBUG] 滚动后，当前职位数: $currentCount")
             }
+
             if (currentCount > previousCount) {
+                // 职位数量增加了，重置计数器并更新记录
                 previousCount = currentCount
                 unchangedCount = 0
-                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                delay(2000)
+                println("    [searchAndApply] 职位数量增加，继续滚动...")
             } else {
+                // 职位数量没有增加
                 unchangedCount++
+                println("    [searchAndApply] 职位数量未变化 ($unchangedCount/2)")
             }
         }
 
         val jobCards = page.locator(Selectors.JOB_CARD).all()
+        println("    [searchAndApply] 滚动加载结束，共找到 ${jobCards.size} 个职位卡片")
         if (AppConfig.isDebugMode) {
             viewModel.addLog("[DEBUG] 滚动加载结束，共找到 ${jobCards.size} 个职位")
         }
         viewModel.addLog("找到 ${jobCards.size} 个职位")
+        
+        // 打印前几个职位的信息以便调试
+        if (jobCards.isNotEmpty()) {
+            println("    [searchAndApply] 开始打印前3个职位的信息...")
+            for ((idx, card) in jobCards.take(3).withIndex()) {
+                try {
+                    val jobName = card.locator(Selectors.JOB_NAME).textContent() ?: "未知"
+                    val companyName = card.locator(Selectors.COMPANY_NAME).textContent() ?: "未知"
+                    println("    [searchAndApply] 职位 ${idx + 1}: $jobName @ $companyName")
+                } catch (e: Exception) {
+                    println("    [searchAndApply] 获取职位 ${idx + 1} 信息失败: ${e.message}")
+                }
+            }
+        } else {
+            println("    [searchAndApply] ⚠️ 警告：jobCards 列表为空，无法获取职位信息")
+            viewModel.addLog("警告：职位列表为空，请检查页面是否正常加载")
+        }
 
         if (AppConfig.isDebugMode) {
             viewModel.addLog("[DEBUG] 开始遍历所有职位...")

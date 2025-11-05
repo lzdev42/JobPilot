@@ -28,8 +28,8 @@ class InputViewModel(val inputType: InputType): ViewModel() {
     private fun loadInitialValue() {
         val initialValue = when (inputType) {
             InputType.SETTING -> {
-                // 如果有设置相关的配置，在这里读取
-                "" // 或者从 AppConfig 读取相应的设置值
+                // 从 AppConfig 读取已保存的 Gemini AppKey
+                AppConfig.geminiAppKey
             }
             InputType.RESUME -> {
                 AppConfig.resume

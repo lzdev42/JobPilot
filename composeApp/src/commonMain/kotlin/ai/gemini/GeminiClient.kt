@@ -161,6 +161,25 @@ class GeminiClient(val config: GeminiConfig) {
     }
     
     /**
+     * 测试 API Key 是否有效
+     * 使用简单的测试提示来验证连接性
+     */
+    suspend fun testApiKey(): Result<String> {
+        return try {
+            // 使用一个非常简单的测试提示，只要求返回 "ok"
+            val testPrompt = "请回复：ok"
+            val result = generateText(testPrompt)
+            if (result.isSuccess) {
+                Result.success("API Key 测试成功")
+            } else {
+                result
+            }
+        } catch (e: Exception) {
+            Result.failure(GeminiException("API Key 测试失败: ${e.message}", e))
+        }
+    }
+    
+    /**
      * 构建单个提示的请求JSON
      */
     private fun buildRequestJson(prompt: String): String {
